@@ -7,6 +7,7 @@ import { listCodes, scanCountsByCode } from "@/lib/db/store";
 import { QrArtwork } from "@/lib/qr/render";
 import { typeLabel } from "@/lib/qr/encode";
 import { computeStats, formatDate, nombre } from "@/lib/stats";
+import { droitAuCodeGratuit } from "@/lib/pricing";
 import { PRICE_XOF } from "@/lib/payments/provider";
 
 export const metadata: Metadata = { title: "Mes codes, Trame" };
@@ -26,6 +27,7 @@ export default async function Page() {
 
   const codes = await listCodes(email);
   const scans = await scanCountsByCode(email);
+  const droit = await droitAuCodeGratuit(email);
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -127,7 +129,9 @@ export default async function Page() {
             >
               +
             </span>
-            Créer un nouveau code : {PRICE_XOF.toLocaleString("fr-FR")} F
+            {droit.gratuit
+              ? "Créer un nouveau code, offert"
+              : `Créer un nouveau code : ${PRICE_XOF.toLocaleString("fr-FR")} F`}
           </Link>
         </div>
 

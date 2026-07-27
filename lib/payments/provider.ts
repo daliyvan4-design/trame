@@ -125,19 +125,35 @@ async function geniusInit(input: PaymentInit): Promise<PaymentResult> {
   }
 }
 
+// Règle de sûreté : « je ne sais pas » n'est jamais « c'est raté ». Une panne de
+// l'agrégateur, une coupure réseau ou une réponse illisible laissent la transaction
+// en attente. Seul un état négatif explicite conclut à l'échec, sans quoi une personne
+// qui vient de payer se verrait annoncer que son paiement n'a pas abouti.
 async function geniusCheck(reference: string): Promise<PaymentResult> {
   try {
     const res = await fetch(`${BASE}/payments/${encodeURIComponent(reference)}`, {
       headers: headers(),
       cache: "no-store",
     });
-    const body = (await res.json()) as { success?: boolean; data?: GeniusData; message?: string };
+    if (res.status >= 500 || res.status === 429) return { status: "en_attente", reference };
+
+    const texte = await res.text();
+    let body: { success?: boolean; data?: GeniusData; message?: string } | null = null;
+    try {
+      body = JSON.parse(texte);
+    } catch {
+      // L'agrégateur a renvoyé une page HTML au lieu de JSON : incident chez lui.
+      return { status: "en_attente", reference };
+    }
+
     const status = body?.data?.status;
     if (status === "completed") return { status: "paye", reference };
-    if (status === "pending" || status === "processing") return { status: "en_attente", reference };
-    return { status: "echec", reference, message: raisonDeLEchec(status) };
+    if (status === "failed" || status === "cancelled" || status === "expired" || status === "refunded") {
+      return { status: "echec", reference, message: raisonDeLEchec(status) };
+    }
+    return { status: "en_attente", reference };
   } catch {
-    return { status: "echec", reference, message: "Le paiement n'a pas abouti" };
+    return { status: "en_attente", reference };
   }
 }
 

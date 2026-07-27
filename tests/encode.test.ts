@@ -137,3 +137,16 @@ test("la signature des webhooks GeniusPay est vérifiée sérieusement", async (
   delete process.env.GENIUSPAY_WEBHOOK_SECRET;
   assert.equal(verifyWebhook(corps, signe(maintenant, corps), maintenant), false);
 });
+
+test("le compte propriétaire est reconnu, insensible à la casse et aux espaces", async () => {
+  process.env.OWNER_EMAIL = "daliyvan4@gmail.com";
+  const { estProprietaire } = await import("../lib/pricing");
+  assert.equal(estProprietaire("daliyvan4@gmail.com"), true);
+  assert.equal(estProprietaire("  DaliYvan4@Gmail.com "), true);
+  assert.equal(estProprietaire("quelquun.dautre@gmail.com"), false);
+  assert.equal(estProprietaire(null), false);
+  // sans propriétaire déclaré, personne ne doit hériter du privilège
+  delete process.env.OWNER_EMAIL;
+  assert.equal(estProprietaire(""), false);
+  assert.equal(estProprietaire("daliyvan4@gmail.com"), false);
+});

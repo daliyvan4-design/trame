@@ -64,6 +64,15 @@ function ensureSchema(): Promise<void> {
           commune  TEXT NOT NULL
         )
       `;
+      await q`
+        CREATE TABLE IF NOT EXISTS payments (
+          reference   TEXT PRIMARY KEY,
+          code_id     TEXT NOT NULL,
+          status      TEXT NOT NULL DEFAULT 'en_attente',
+          created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `;
       await q`CREATE INDEX IF NOT EXISTS codes_owner_idx ON codes (owner_email, created_at DESC)`;
       await q`CREATE INDEX IF NOT EXISTS scans_code_idx ON scans (code_id, at DESC)`;
     })().catch((err) => {
@@ -122,6 +131,30 @@ export async function saveCode(code: SavedCode): Promise<SavedCode> {
   return code;
 }
 
+export async function countCodes(ownerEmail: string): Promise<number> {
+  await ensureSchema();
+  const rows = (await sql()`
+    SELECT count(*)::int AS n FROM codes WHERE owner_email = ${ownerEmail}
+  `) as Array<{ n: number }>;
+  return rows[0]?.n ?? 0;
+}
+
+// Insertion conditionnelle en une seule instruction : deux requêtes simultanées ne
+// peuvent pas obtenir deux codes offerts pour le même compte. Renvoie false quand
+// le compte avait déjà un code, donc quand le code aurait dû être payé.
+export async function saveFirstFreeCode(code: SavedCode): Promise<boolean> {
+  await ensureSchema();
+  const rows = (await sql()`
+    INSERT INTO codes (id, owner_email, name, type, fields, style, encoded, target, tracked, created_at, payment_ref)
+    SELECT ${code.id}, ${code.ownerEmail}, ${code.name}, ${code.type},
+           ${JSON.stringify(code.fields)}::jsonb, ${JSON.stringify(code.style)}::jsonb,
+           ${code.encoded}, ${code.target}, ${code.tracked}, ${code.createdAt}, ${code.paymentRef}
+    WHERE NOT EXISTS (SELECT 1 FROM codes WHERE owner_email = ${code.ownerEmail})
+    RETURNING id
+  `) as Array<{ id: string }>;
+  return rows.length > 0;
+}
+
 export async function getCode(id: string): Promise<SavedCode | null> {
   await ensureSchema();
   const rows = (await sql()`SELECT * FROM codes WHERE id = ${id}`) as CodeRow[];
@@ -153,6 +186,39 @@ export async function scansFor(codeId: string): Promise<Scan[]> {
     at: new Date(r.at).toISOString(),
     commune: r.commune,
   }));
+}
+
+export type PaymentStatus = "en_attente" | "paye" | "echec";
+
+// L'état des paiements est conservé chez nous : c'est ce qui permet au webhook
+// de trancher même quand l'API de l'agrégateur est indisponible.
+export async function openPayment(reference: string, codeId: string): Promise<void> {
+  await ensureSchema();
+  await sql()`
+    INSERT INTO payments (reference, code_id) VALUES (${reference}, ${codeId})
+    ON CONFLICT (reference) DO NOTHING
+  `;
+}
+
+export async function setPaymentStatus(reference: string, status: PaymentStatus): Promise<void> {
+  await ensureSchema();
+  // Un paiement confirmé ne redevient jamais un échec : seul le premier verdict
+  // définitif compte, qu'il vienne du webhook ou de la vérification par sondage.
+  await sql()`
+    UPDATE payments SET status = ${status}, updated_at = now()
+    WHERE reference = ${reference} AND status = 'en_attente'
+  `;
+}
+
+export async function getPayment(
+  reference: string,
+): Promise<{ reference: string; codeId: string; status: PaymentStatus } | null> {
+  await ensureSchema();
+  const rows = (await sql()`
+    SELECT reference, code_id, status FROM payments WHERE reference = ${reference}
+  `) as Array<{ reference: string; code_id: string; status: PaymentStatus }>;
+  const r = rows[0];
+  return r ? { reference: r.reference, codeId: r.code_id, status: r.status } : null;
 }
 
 export async function scanCountsByCode(ownerEmail: string): Promise<Record<string, Scan[]>> {

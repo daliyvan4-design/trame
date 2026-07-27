@@ -103,7 +103,9 @@ export default function Accueil({ header }: { header: React.ReactNode }) {
               <Link href="/generateur" className="btn-accent" style={{ display: "inline-flex", alignItems: "center" }}>
                 Créer mon QR code
               </Link>
-              <span style={{ fontSize: 14, color: "var(--muted)" }}>2 000 F le code, c'est tout</span>
+              <span style={{ fontSize: 14, color: "var(--muted)" }}>
+                Le premier est offert, les suivants 2 000 F
+              </span>
             </div>
           </div>
 
@@ -183,7 +185,9 @@ export default function Accueil({ header }: { header: React.ReactNode }) {
                   Un prix, pas de piège.
                 </h2>
                 <p style={{ color: "var(--muted-strong)", fontSize: 15, maxWidth: 360 }}>
-                  Tu paies quand ton code te plaît, pas avant. Aucun abonnement, aucun code qui expire.
+                  Ton premier code est offert : connecte-toi avec Google et repars avec tes fichiers.
+                  Ensuite, tu paies quand ton code te plaît, pas avant. Aucun abonnement, aucun code
+                  qui expire.
                 </p>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -191,7 +195,7 @@ export default function Accueil({ header }: { header: React.ReactNode }) {
                   2 000 F
                 </div>
                 <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
-                  {["Un paiement, une fois", "Fichiers PNG et SVG", "Rien à payer chaque mois"].map((li) => (
+                  {["Le premier code offert", "Un paiement, une fois", "Fichiers PNG et SVG", "Rien à payer chaque mois"].map((li) => (
                     <li key={li} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 15 }}>
                       <span aria-hidden style={{ color: "var(--accent)", transition: "color .45s" }}>
                         •

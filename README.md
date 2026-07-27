@@ -90,6 +90,19 @@ transaction : un corps de requête n'est pas une preuve de paiement.
    l'achat, donc elle doit être correcte avant la première vente. Les codes déjà vendus
    continuent de fonctionner tant que l'ancien domaine sert l'application.
 
+## Tarification
+
+Trois cas, tranchés côté serveur dans `lib/pricing.ts` :
+
+- le compte déclaré dans `OWNER_EMAIL` génère sans limite et sans paiement ;
+- tout autre compte connecté reçoit son **premier code offert**, les suivants sont à 2 000 F ;
+- sans connexion, le paiement s'applique : un code offert ne peut être attribué à personne.
+
+Le droit n'est jamais décidé par le navigateur. `app/api/codes/route.ts` le revérifie, et
+l'insertion du code offert se fait par une instruction SQL conditionnelle unique
+(`saveFirstFreeCode`), si bien que deux requêtes simultanées ne peuvent pas obtenir deux
+codes offerts pour le même compte.
+
 ## Base de données
 
 Neon Postgres, provisionné via le Marketplace Vercel (`vercel integration add neon`).

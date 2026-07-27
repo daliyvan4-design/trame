@@ -39,13 +39,19 @@ export type BrouillonInitial = {
   style: QrStyle;
 } | null;
 
+export type Droit = { gratuit: boolean; motif: string };
+
 export default function Generateur({
   header,
   initial = null,
+  droit,
 }: {
   header: React.ReactNode;
   initial?: BrouillonInitial;
+  droit: Droit;
 }) {
+  const [enCours, setEnCours] = useState(false);
+  const [erreurOffert, setErreurOffert] = useState<string | null>(null);
   const [type, setType] = useState<ContentType>(initial?.type ?? "lien");
   const [fieldsByType, setFieldsByType] = useState<Record<string, ContentFields>>(
     initial ? { [initial.type]: initial.fields } : {},
@@ -88,6 +94,31 @@ export default function Generateur({
   function svg() {
     const node = exportNode();
     if (node) downloadSvg(node, filename);
+  }
+
+  // Parcours offert : on demande le code sans passer par le paiement. Le serveur
+  // revérifie le droit, donc un clic forcé depuis la console ne donne rien.
+  async function reclamerOffert() {
+    setEnCours(true);
+    setErreurOffert(null);
+    try {
+      const res = await fetch("/api/codes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, fields, style }),
+      });
+      const body = (await res.json()) as SavedCode & { message?: string };
+      if (!res.ok) {
+        setErreurOffert(body.message ?? "La création n'a pas abouti.");
+        return;
+      }
+      setSaved(body);
+      setSheetOpen(true);
+    } catch {
+      setErreurOffert("La création n'a pas abouti. Réessaie dans un instant.");
+    } finally {
+      setEnCours(false);
+    }
   }
 
   async function onLogoFile(file: File | undefined) {
@@ -369,20 +400,30 @@ export default function Generateur({
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", flexDirection: "column", gap: 7 }}>
           <button
             className="btn-accent"
-            disabled={Boolean(invalid)}
+            disabled={Boolean(invalid) || enCours}
             onClick={() => {
               setTouched(true);
-              if (!invalid) setSheetOpen(true);
+              if (invalid) return;
+              if (saved || !droit.gratuit) setSheetOpen(true);
+              else reclamerOffert();
             }}
           >
-            {saved
-              ? "Retélécharger mes fichiers"
-              : `Télécharger mon QR code : ${PRICE_XOF.toLocaleString("fr-FR")} F`}
+            {enCours
+              ? "Création en cours..."
+              : saved
+                ? "Retélécharger mes fichiers"
+                : droit.gratuit
+                  ? "Télécharger mon QR code, offert"
+                  : `Télécharger mon QR code : ${PRICE_XOF.toLocaleString("fr-FR")} F`}
           </button>
-          <p style={{ fontSize: 12, color: "var(--muted)", textAlign: "center" }}>
-            {invalid && touched
-              ? invalid
-              : "Paiement par Mobile Money : Orange, MTN, Wave. Fichiers PNG et SVG."}
+          <p
+            style={{
+              fontSize: 12,
+              color: erreurOffert || (invalid && touched) ? "var(--danger)" : "var(--muted)",
+              textAlign: "center",
+            }}
+          >
+            {erreurOffert ?? (invalid && touched ? invalid : droit.motif)}
           </p>
         </div>
       </div>
