@@ -65,18 +65,26 @@ sans statistiques, dans le générateur comme dans « Mes codes ».
 ### Le paiement
 
 `lib/payments/provider.ts` expose `initPayment` et `checkPayment`. Avec
-`CINETPAY_API_KEY` et `CINETPAY_SITE_ID`, l'agrégateur CinetPay est appelé pour de vrai ;
-sans elles, le pilote de démonstration prend le relais. Le fichier n'est jamais livré sur
-la seule parole du client : `app/api/codes/route.ts` revérifie l'état de la transaction
-côté serveur avant d'enregistrer le code, et répond 402 tant que le paiement n'est pas
-confirmé.
+`GENIUSPAY_API_KEY` et `GENIUSPAY_API_SECRET`, l'agrégateur GeniusPay est appelé pour
+de vrai (Wave, Orange Money, MTN Money) ; sans elles, le pilote de démonstration prend
+le relais. La référence de transaction est toujours émise par l'agrégateur, jamais
+inventée par Trame, et l'identifiant du futur code voyage dans le champ `metadata`.
+
+Le fichier n'est jamais livré sur la seule parole du client : `app/api/codes/route.ts`
+revérifie l'état de la transaction côté serveur avant d'enregistrer le code, et répond
+402 tant que le paiement n'est pas confirmé. Le webhook
+(`app/api/paiement/notification/route.ts`) vérifie la signature HMAC-SHA256 et refuse
+les horodatages de plus de cinq minutes, puis redemande malgré tout l'état réel de la
+transaction : un corps de requête n'est pas une preuve de paiement.
 
 ## Passer en production
 
 1. **Connexion Google** : renseigne `AUTH_GOOGLE_ID` et `AUTH_GOOGLE_SECRET`, et ajoute
    `https://ton-domaine/api/auth/callback/google` aux URI de redirection autorisées.
-2. **Paiement** : renseigne `CINETPAY_API_KEY` et `CINETPAY_SITE_ID`, puis déclare
-   `https://ton-domaine/api/paiement/notification` comme URL de notification.
+2. **Paiement** : renseigne `GENIUSPAY_API_KEY`, `GENIUSPAY_API_SECRET` et
+   `GENIUSPAY_WEBHOOK_SECRET` depuis https://pay.genius.ci, puis déclare
+   `https://ton-domaine/api/paiement/notification` comme URL de webhook. Commence avec
+   les clés `pk_sandbox_` et `sk_sandbox_` pour tester sans débit réel.
 3. **Domaine** : pose `APP_URL=https://trame.ci` pour que les liens courts encodés dans
    les QR pointent au bon endroit. Cette valeur est figée dans chaque code au moment de
    l'achat, donc elle doit être correcte avant la première vente. Les codes déjà vendus

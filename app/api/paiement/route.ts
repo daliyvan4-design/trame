@@ -1,31 +1,36 @@
 import { NextResponse } from "next/server";
-import { checkPayment, initPayment, newReference, type Operator } from "@/lib/payments/provider";
+import { checkPayment, initPayment, OPERATORS, type Operator } from "@/lib/payments/provider";
 import { newCodeId } from "@/lib/db/store";
+
+function readOperator(value: unknown): Operator | null {
+  return OPERATORS.some((o) => o.id === value) ? (value as Operator) : null;
+}
 
 // Lance un paiement Mobile Money et réserve l'identifiant du futur code
 // (les codes suivis encodent cet identifiant dans leur URL de redirection).
 export async function POST(request: Request) {
-  const body = (await request.json()) as { operator?: Operator; phone?: string };
-  const operator = body.operator;
-  const phone = (body.phone ?? "").trim();
+  const body = (await request.json().catch(() => ({}))) as { operator?: unknown; phone?: unknown };
+  const operator = readOperator(body.operator);
+  const phone = typeof body.phone === "string" ? body.phone.trim() : "";
 
   if (!operator) {
     return NextResponse.json({ status: "echec", message: "Choisis ton opérateur." }, { status: 400 });
   }
 
-  const reference = newReference();
+  const codeId = newCodeId();
+  // La référence est émise par l'agrégateur : on ne l'invente jamais côté Trame.
   const result = await initPayment({
     operator,
     phone,
-    reference,
     description: "Trame, un QR code personnalisé",
+    codeId,
   });
 
   if (result.status === "echec") {
     return NextResponse.json(result, { status: 400 });
   }
 
-  return NextResponse.json({ ...result, codeId: newCodeId() });
+  return NextResponse.json({ ...result, codeId });
 }
 
 export async function GET(request: Request) {

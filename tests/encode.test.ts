@@ -106,3 +106,34 @@ test("le pilote de démonstration est sans état : la référence porte son inst
   assert.equal((await checkPayment("TRAME-INVENTE")).status, "echec");
   assert.equal((await checkPayment("n'importe quoi")).status, "echec");
 });
+
+test("la signature des webhooks GeniusPay est vérifiée sérieusement", async () => {
+  process.env.GENIUSPAY_WEBHOOK_SECRET = "whsec_de_test";
+  const crypto = await import("node:crypto");
+  const { verifyWebhook } = await import("../lib/payments/provider");
+
+  const corps = JSON.stringify({ event: "payment.success", data: { reference: "MTX-A1B2C3D4E5" } });
+  const maintenant = String(Math.floor(Date.now() / 1000));
+  const signe = (ts: string, body: string) =>
+    crypto.createHmac("sha256", "whsec_de_test").update(`${ts}.${body}`).digest("hex");
+
+  // une notification authentique passe
+  assert.equal(verifyWebhook(corps, signe(maintenant, corps), maintenant), true);
+
+  // un corps modifié après signature est rejeté
+  const falsifie = corps.replace("A1B2C3D4E5", "FRAUDE0000");
+  assert.equal(verifyWebhook(falsifie, signe(maintenant, corps), maintenant), false);
+
+  // une signature inventée est rejetée
+  assert.equal(verifyWebhook(corps, "0".repeat(64), maintenant), false);
+  assert.equal(verifyWebhook(corps, "", maintenant), false);
+
+  // un rejeu de plus de cinq minutes est rejeté
+  const vieux = String(Math.floor(Date.now() / 1000) - 400);
+  assert.equal(verifyWebhook(corps, signe(vieux, corps), vieux), false);
+
+  // sans secret configuré, aucune notification n'est acceptée
+  // (le secret est relu à chaque appel, pas figé au chargement du module)
+  delete process.env.GENIUSPAY_WEBHOOK_SECRET;
+  assert.equal(verifyWebhook(corps, signe(maintenant, corps), maintenant), false);
+});

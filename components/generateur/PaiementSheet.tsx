@@ -36,6 +36,7 @@ export default function PaiementSheet({
   const [phone, setPhone] = useState("");
   const [etape, setEtape] = useState<Etape>(code ? "succes" : "saisie");
   const [erreur, setErreur] = useState<string | null>(null);
+  const [redirige, setRedirige] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const stop = useRef(false);
 
@@ -87,7 +88,10 @@ export default function PaiementSheet({
         return;
       }
 
-      if (started.redirectUrl) window.open(started.redirectUrl, "_blank", "noopener");
+      if (started.redirectUrl) {
+        setRedirige(true);
+        window.open(started.redirectUrl, "_blank", "noopener");
+      }
 
       const deadline = Date.now() + TIMEOUT_MS;
       while (Date.now() < deadline && !stop.current) {
@@ -255,9 +259,15 @@ export default function PaiementSheet({
                 animation: "spin .8s linear infinite",
               }}
             />
-            <p style={{ fontSize: 16, fontWeight: 600 }}>Confirme le paiement sur ton téléphone.</p>
+            <p style={{ fontSize: 16, fontWeight: 600, textAlign: "center" }}>
+              {redirige
+                ? "Termine le paiement dans la page qui vient de s'ouvrir."
+                : "Confirme le paiement sur ton téléphone."}
+            </p>
             <p style={{ fontSize: 13.5, color: "var(--muted)", textAlign: "center", maxWidth: 300 }}>
-              Un message vient d'être envoyé au numéro indiqué. Garde cette page ouverte.
+              {redirige
+                ? "Reviens ici une fois que c'est fait : cette page se met à jour toute seule."
+                : "Un message vient d'être envoyé au numéro indiqué. Garde cette page ouverte."}
             </p>
           </div>
         )}
@@ -281,6 +291,9 @@ export default function PaiementSheet({
 
         {etape === "echec" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {erreur && erreur !== "Le paiement n'a pas abouti" && (
+              <p style={{ fontSize: 15, fontWeight: 600 }}>{erreur}</p>
+            )}
             <p style={{ fontSize: 15, color: "var(--muted-strong)" }}>
               Vérifie ton solde ou réessaie avec un autre numéro. Rien n'a été débité.
             </p>
@@ -288,6 +301,7 @@ export default function PaiementSheet({
               className="btn-accent"
               onClick={() => {
                 setErreur(null);
+                setRedirige(false);
                 setEtape("saisie");
               }}
             >
