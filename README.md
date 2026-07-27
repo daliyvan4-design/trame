@@ -77,11 +77,22 @@ confirmé.
    `https://ton-domaine/api/auth/callback/google` aux URI de redirection autorisées.
 2. **Paiement** : renseigne `CINETPAY_API_KEY` et `CINETPAY_SITE_ID`, puis déclare
    `https://ton-domaine/api/paiement/notification` comme URL de notification.
-3. **Base de données** : `lib/db/store.ts` écrit dans `.data/trame.json`, ce qui convient
-   au développement mais pas à un déploiement serverless, où le disque n'est ni partagé ni
-   durable. Provisionne Neon Postgres depuis le Marketplace Vercel
-   (`vercel integration add neon`) et réécris les six fonctions exportées de ce fichier :
-   le reste de l'application ne les connaît que par leur signature.
-4. **Domaine** : pose `APP_URL=https://trame.ci` pour que les liens courts encodés dans
+3. **Domaine** : pose `APP_URL=https://trame.ci` pour que les liens courts encodés dans
    les QR pointent au bon endroit. Cette valeur est figée dans chaque code au moment de
-   l'achat, donc elle doit être correcte avant la première vente.
+   l'achat, donc elle doit être correcte avant la première vente. Les codes déjà vendus
+   continuent de fonctionner tant que l'ancien domaine sert l'application.
+
+## Base de données
+
+Neon Postgres, provisionné via le Marketplace Vercel (`vercel integration add neon`).
+Les variables `DATABASE_URL` et compagnie sont injectées automatiquement dans le projet.
+
+Deux tables, `codes` et `scans`, créées à la première requête par `ensureSchema()` dans
+`lib/db/store.ts` : il n'y a pas d'étape de migration à lancer à la main, ni à oublier
+avant la première vente. La suppression d'un code emporte ses scans en cascade.
+
+Pour inspecter la base en local :
+
+```bash
+vercel env pull .env.local --yes
+```
