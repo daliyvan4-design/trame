@@ -93,7 +93,17 @@ async function cinetpayCheck(reference: string): Promise<PaymentResult> {
 }
 
 // Pilote de démonstration : suit le même cycle (attente puis confirmation) sans débit réel.
-const demo = new Map<string, number>();
+// L'instant de départ est lu dans la référence elle-même, donc aucune mémoire partagée
+// n'est nécessaire : deux requêtes traitées par deux instances donnent le même verdict.
+const DEMO_ATTENTE_MS = 3200;
+
+function demoStartedAt(reference: string): number | null {
+  const part = /^TRAME-([0-9A-Z]+)-[0-9A-Z]+$/.exec(reference)?.[1];
+  if (!part) return null;
+  const ms = parseInt(part, 36);
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  return ms;
+}
 
 export async function initPayment(input: PaymentInit): Promise<PaymentResult> {
   if (!validPhone(input.phone)) {
@@ -104,18 +114,22 @@ export async function initPayment(input: PaymentInit): Promise<PaymentResult> {
     };
   }
   if (cinetpayConfigured) return cinetpayInit(input);
-  demo.set(input.reference, Date.now());
   return { status: "en_attente", reference: input.reference };
 }
 
 export async function checkPayment(reference: string): Promise<PaymentResult> {
   if (cinetpayConfigured) return cinetpayCheck(reference);
-  const started = demo.get(reference);
-  if (!started) return { status: "echec", reference, message: "Le paiement n'a pas abouti" };
-  if (Date.now() - started < 3200) return { status: "en_attente", reference };
+  const started = demoStartedAt(reference);
+  if (started === null) return { status: "echec", reference, message: "Le paiement n'a pas abouti" };
+  if (Date.now() - started < DEMO_ATTENTE_MS) return { status: "en_attente", reference };
   return { status: "paye", reference };
 }
 
 export function newReference(): string {
-  return "TRAME-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 7).toUpperCase();
+  return (
+    "TRAME-" +
+    Date.now().toString(36).toUpperCase() +
+    "-" +
+    Math.random().toString(36).slice(2, 7).toUpperCase()
+  );
 }

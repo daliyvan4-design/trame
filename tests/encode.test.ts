@@ -95,3 +95,14 @@ test("les statistiques couvrent 14 jours et repèrent le meilleur", () => {
   assert.equal(s.communes[0].name, "Cocody");
   assert.equal(s.communes[0].pct, 50);
 });
+
+test("le pilote de démonstration est sans état : la référence porte son instant de départ", async () => {
+  const { newReference, checkPayment } = await import("../lib/payments/provider");
+  const ref = newReference();
+  assert.match(ref, /^TRAME-[0-9A-Z]+-[0-9A-Z]+$/);
+  // juste après l'émission : en attente de confirmation sur le téléphone
+  assert.equal((await checkPayment(ref)).status, "en_attente");
+  // une référence inventée n'ouvre jamais l'accès aux fichiers
+  assert.equal((await checkPayment("TRAME-INVENTE")).status, "echec");
+  assert.equal((await checkPayment("n'importe quoi")).status, "echec");
+});
