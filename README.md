@@ -90,6 +90,25 @@ transaction : un corps de requête n'est pas une preuve de paiement.
    l'achat, donc elle doit être correcte avant la première vente. Les codes déjà vendus
    continuent de fonctionner tant que l'ancien domaine sert l'application.
 
+## E-mails
+
+Deux gabarits sont écrits dans `lib/email/` : **bienvenue** (première connexion) et
+**livraison** (code créé). La connexion passant par Google, l'adresse est déjà vérifiée :
+il n'y a volontairement pas d'e-mail de confirmation à cliquer.
+
+Le rendu réel se regarde sur `/apercu-emails`, page réservée au compte propriétaire.
+
+**L'envoi n'est pas branché.** Il manque un fournisseur : Resend est disponible sur le
+Marketplace mais demande d'accepter ses conditions dans le navigateur.
+
+```bash
+vercel integration add resend/resend-email --no-claim   # après acceptation des conditions
+```
+
+Il restera ensuite à écrire `lib/email/send.ts` et à l'appeler à deux endroits : après la
+première connexion, et après la création d'un code dans `app/api/codes/route.ts`. Attention,
+Resend n'autorise l'envoi depuis une adresse arbitraire qu'une fois un domaine vérifié.
+
 ## Tarification
 
 Trois cas, tranchés côté serveur dans `lib/pricing.ts` :
