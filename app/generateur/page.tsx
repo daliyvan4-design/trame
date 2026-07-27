@@ -4,6 +4,7 @@ import Generateur from "@/components/generateur/Generateur";
 import { currentEmail } from "@/auth";
 import { getCode } from "@/lib/db/store";
 import { droitAuCodeGratuit } from "@/lib/pricing";
+import { appUrl } from "@/lib/url";
 
 export const metadata: Metadata = {
   title: "Composer mon QR code, Trame",
@@ -25,9 +26,16 @@ export default async function Page({
   if (id) {
     const found = await getCode(id);
     if (found && email && found.ownerEmail === email) {
-      initial = { type: found.type, fields: found.fields, style: found.style };
+      initial = {
+        type: found.type,
+        fields: found.fields,
+        style: found.style,
+        suivi: found.tracked,
+      };
     }
   }
 
-  return <Generateur header={<Header compact />} initial={initial} droit={droit} />;
+  return (
+    <Generateur header={<Header compact />} initial={initial} droit={droit} origine={appUrl()} />
+  );
 }

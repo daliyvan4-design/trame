@@ -27,6 +27,9 @@ type Payload = {
   type?: ContentType;
   fields?: ContentFields;
   style?: QrStyle;
+  // Suivi des scans : quand il est actif, le QR encode une URL courte au lieu du
+  // lien réel. Le choix appartient à la personne qui crée le code.
+  suivi?: boolean;
 };
 
 function buildCode(args: {
@@ -35,10 +38,12 @@ function buildCode(args: {
   type: ContentType;
   fields: ContentFields;
   style?: QrStyle;
+  suivi?: boolean;
   paymentRef: string;
 }): SavedCode {
   const target = encodeContent(args.type, args.fields);
-  const tracked = isTrackable(args.type);
+  // Le suivi n'est possible que pour les types en ligne, et seulement s'il est demandé.
+  const tracked = isTrackable(args.type) && args.suivi === true;
   return {
     id: args.id,
     ownerEmail: args.email,
@@ -81,6 +86,7 @@ export async function POST(request: Request) {
       type,
       fields,
       style: body.style,
+      suivi: body.suivi,
       paymentRef: estProprietaire(email) ? "PROPRIETAIRE" : "PREMIER-OFFERT",
     });
 
@@ -115,6 +121,7 @@ export async function POST(request: Request) {
     type,
     fields,
     style: body.style,
+    suivi: body.suivi,
     paymentRef: reference,
   });
   await saveCode(code);

@@ -37,6 +37,7 @@ export type BrouillonInitial = {
   type: ContentType;
   fields: ContentFields;
   style: QrStyle;
+  suivi: boolean;
 } | null;
 
 export type Droit = { gratuit: boolean; motif: string };
@@ -45,11 +46,15 @@ export default function Generateur({
   header,
   initial = null,
   droit,
+  origine,
 }: {
   header: React.ReactNode;
   initial?: BrouillonInitial;
   droit: Droit;
+  // Domaine des liens courts, pour que l'aperçu montre exactement le code livré.
+  origine: string;
 }) {
+  const [suivi, setSuivi] = useState(initial?.suivi ?? false);
   const [enCours, setEnCours] = useState(false);
   const [erreurOffert, setErreurOffert] = useState<string | null>(null);
   const [type, setType] = useState<ContentType>(initial?.type ?? "lien");
@@ -67,9 +72,16 @@ export default function Generateur({
   const def = CONTENT_TYPES.find((t) => t.id === type)!;
   const invalid = validateContent(type, fields);
   const { content: preview } = previewContent(type, fields);
-  const finalContent = saved?.encoded ?? preview;
+  const suiviPossible = isTrackable(type);
+  const suiviActif = suiviPossible && suivi;
+
+  // Avec le suivi, le code encode une URL courte. L'identifiant fictif a la même
+  // longueur que le vrai, donc l'aperçu a exactement la structure du code livré.
+  const contenuAffiche = suiviActif ? `${origine}/r/aaaaaaa` : preview;
+  const finalContent = saved?.encoded ?? contenuAffiche;
   const signature = useMemo(() => styleSignature({ type, fields, style }), [type, fields, style]);
-  const tracked = isTrackable(type);
+  const legendeBase = legendFor(type, fields);
+  const legende = suiviActif && !invalid ? `${legendeBase}, en comptant les scans` : legendeBase;
 
   function setField(key: string, value: string) {
     setTouched(true);
@@ -105,7 +117,7 @@ export default function Generateur({
       const res = await fetch("/api/codes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, fields, style }),
+        body: JSON.stringify({ type, fields, style, suivi: suiviActif }),
       });
       const body = (await res.json()) as SavedCode & { message?: string };
       if (!res.ok) {
@@ -164,11 +176,11 @@ export default function Generateur({
                 content={finalContent}
                 style={style}
                 animate
-                title={`Aperçu du QR code : ${legendFor(type, fields)}`}
+                title={`Aperçu du QR code : ${legende}`}
               />
             </div>
             <p style={{ fontSize: 13.5, color: "var(--muted)", textAlign: "center", maxWidth: 300 }}>
-              {legendFor(type, fields)}
+              {legende}
             </p>
           </div>
         </div>
@@ -222,7 +234,7 @@ export default function Generateur({
                   {invalid}
                 </p>
               )}
-              {!tracked && (
+              {!suiviPossible && (
                 <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
                   Ce type fonctionne sans connexion : la donnée est écrite dans le code lui-même, donc les
                   statistiques de scan ne sont pas disponibles pour {typeLabel(type).toLowerCase()}.
@@ -230,6 +242,24 @@ export default function Generateur({
               )}
             </div>
           </Groupe>
+
+          {suiviPossible && (
+            <Groupe titre="Ce que le scan affiche">
+              <Choix<"direct" | "compte">
+                value={suivi ? "compte" : "direct"}
+                onChange={(v) => setSuivi(v === "compte")}
+                options={[
+                  { id: "direct", label: "Ton lien réel" },
+                  { id: "compte", label: "Un lien Trame qui compte les scans" },
+                ]}
+              />
+              <p style={{ fontSize: 12.5, color: "var(--muted)", maxWidth: 460 }}>
+                {suivi
+                  ? `Au scan, l'appareil photo affichera ${origine.replace(/^https?:\/\//, "")} avant d'ouvrir ta page. C'est ce passage par nous qui permet de compter les scans et de voir les communes.`
+                  : "Au scan, l'appareil photo affichera ton adresse telle quelle : c'est plus rassurant pour tes clients. En échange, les scans ne peuvent pas être comptés."}
+              </p>
+            </Groupe>
+          )}
 
           <Groupe titre="Couleur">
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -434,6 +464,7 @@ export default function Generateur({
         type={type}
         fields={fields}
         style={style}
+        suivi={suiviActif}
         code={saved}
         onPaid={setSaved}
         onDownloadPng={png}

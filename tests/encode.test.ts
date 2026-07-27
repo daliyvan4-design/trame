@@ -150,3 +150,29 @@ test("le compte propriétaire est reconnu, insensible à la casse et aux espaces
   assert.equal(estProprietaire(""), false);
   assert.equal(estProprietaire("daliyvan4@gmail.com"), false);
 });
+
+test("les insights se déduisent des scans, à l'heure d'Abidjan (UTC+0)", () => {
+  const now = new Date("2026-07-27T20:00:00.000Z"); // un lundi
+  const scans = [
+    // trois scans à 19 h, dont deux par le même appareil
+    { codeId: "a", at: "2026-07-27T19:10:00.000Z", commune: "Cocody", appareil: "iPhone", empreinte: "aaa" },
+    { codeId: "a", at: "2026-07-27T19:40:00.000Z", commune: "Cocody", appareil: "iPhone", empreinte: "aaa" },
+    { codeId: "a", at: "2026-07-27T19:50:00.000Z", commune: "Marcory", appareil: "Android", empreinte: "bbb" },
+    // deux scans à 8 h un samedi
+    { codeId: "a", at: "2026-07-25T08:00:00.000Z", commune: "Plateau", appareil: "Android", empreinte: "ccc" },
+    { codeId: "a", at: "2026-07-25T08:30:00.000Z", commune: "Plateau", appareil: "Android", empreinte: "ddd" },
+  ];
+  const s = computeStats(scans, now);
+
+  assert.equal(s.total, 5);
+  assert.equal(s.personnes, 4, "quatre appareils distincts");
+  assert.equal(s.retours, 1, "un seul scan est un retour");
+  assert.equal(s.meilleureHeure?.heure, 19);
+  assert.equal(s.meilleureHeure?.count, 3);
+  assert.equal(s.heures.length, 24);
+  assert.equal(s.semaineJours.length, 7);
+  assert.equal(s.meilleurJourSemaine?.nom, "lundi");
+  assert.equal(s.appareils[0].nom, "Android");
+  assert.equal(s.appareils[0].count, 3);
+  assert.equal(s.appareils[0].pct, 60);
+});

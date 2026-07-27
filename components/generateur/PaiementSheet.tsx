@@ -17,6 +17,7 @@ export default function PaiementSheet({
   type,
   fields,
   style,
+  suivi,
   code,
   onPaid,
   onDownloadPng,
@@ -27,6 +28,7 @@ export default function PaiementSheet({
   type: ContentType;
   fields: ContentFields;
   style: QrStyle;
+  suivi: boolean;
   code: SavedCode | null;
   onPaid: (code: SavedCode) => void;
   onDownloadPng: () => void;
@@ -109,6 +111,7 @@ export default function PaiementSheet({
               type,
               fields,
               style,
+              suivi,
             }),
           });
           const body = (await saved.json()) as SavedCode & { message?: string };

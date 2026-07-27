@@ -5,9 +5,9 @@ import Retelecharger from "@/components/mescodes/Retelecharger";
 import { currentEmail } from "@/auth";
 import { getCode, scansFor } from "@/lib/db/store";
 import { QrArtwork } from "@/lib/qr/render";
-import { typeLabel } from "@/lib/qr/encode";
+import { isTrackable, typeLabel } from "@/lib/qr/encode";
 import { accentVars } from "@/lib/qr/style";
-import { computeStats, formatDate, formatJour, nombre } from "@/lib/stats";
+import { computeStats, formatDate, formatJour, nombre, trancheHoraire } from "@/lib/stats";
 import { shortHost } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +58,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 20, maxWidth: 560 }}>
               {[
                 { v: stats.total, l: "scans en tout" },
+                { v: stats.personnes, l: "personnes différentes" },
                 { v: stats.semaine, l: "ces 7 derniers jours" },
                 { v: stats.aujourdhui, l: "aujourd'hui" },
               ].map((s) => (
@@ -115,6 +116,105 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               </div>
             </section>
 
+            <section style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 560 }}>
+              <h2 className="label">À quelle heure on te scanne</h2>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 76 }}>
+                {stats.heures.map((h) => {
+                  const maxH = Math.max(1, ...stats.heures.map((x) => x.count));
+                  const pointe = stats.meilleureHeure?.heure === h.heure;
+                  return (
+                    <div
+                      key={h.heure}
+                      title={`${h.count} scans vers ${trancheHoraire(h.heure)}`}
+                      style={{
+                        flex: 1,
+                        height: `${Math.max(3, Math.round((h.count / maxH) * 100))}%`,
+                        background: pointe
+                          ? "var(--accent)"
+                          : "color-mix(in srgb, var(--accent) 28%, transparent)",
+                        borderRadius: "2px 2px 0 0",
+                        transformOrigin: "bottom",
+                        animation: "bar-up .45s cubic-bezier(.2,.7,.3,1) both",
+                        animationDelay: `${h.heure * 18}ms`,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "#a9a6b2" }}>
+                <span>00 h</span>
+                <span>12 h</span>
+                <span>23 h</span>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--muted-strong)" }}>
+                {stats.meilleureHeure
+                  ? `Le pic est autour de ${trancheHoraire(stats.meilleureHeure.heure)}, avec ${nombre(stats.meilleureHeure.count)} scans. C'est le moment où il faut être prêt.`
+                  : "Pas encore assez de scans pour dégager une heure de pointe."}
+              </p>
+            </section>
+
+            <section style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 560 }}>
+              <h2 className="label">Les jours qui marchent</h2>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {stats.semaineJours.map((j) => {
+                  const maxJ = Math.max(1, ...stats.semaineJours.map((x) => x.count));
+                  return (
+                    <div key={j.nom} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{ width: 86, fontSize: 13.5, flexShrink: 0, textTransform: "capitalize" }}>
+                        {j.nom}
+                      </span>
+                      <span style={{ flex: 1, height: 8, background: "var(--surface)", borderRadius: 4, overflow: "hidden" }}>
+                        <span
+                          style={{
+                            display: "block",
+                            width: `${Math.round((j.count / maxJ) * 100)}%`,
+                            height: "100%",
+                            background: "var(--accent)",
+                            borderRadius: 4,
+                          }}
+                        />
+                      </span>
+                      <span style={{ width: 44, textAlign: "right", fontSize: 13, fontWeight: 600, color: "var(--muted-strong)", flexShrink: 0 }}>
+                        {nombre(j.count)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {stats.appareils.length > 0 && (
+              <section style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 560 }}>
+                <h2 className="label">Avec quel téléphone</h2>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                  {stats.appareils.map((a) => (
+                    <span
+                      key={a.nom}
+                      style={{
+                        background: "var(--surface)",
+                        borderRadius: 10,
+                        padding: "9px 14px",
+                        fontSize: 13.5,
+                      }}
+                    >
+                      {a.nom} <strong style={{ color: "var(--accent)" }}>{a.pct} %</strong>
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <p style={{ fontSize: 12.5, color: "var(--muted)", maxWidth: 560 }}>
+              {stats.retours > 0
+                ? `${nombre(stats.retours)} scans sont des retours : des personnes qui avaient déjà scanné ce code. `
+                : ""}
+              {stats.meilleurJourSemaine
+                ? `Ton meilleur jour de la semaine est le ${stats.meilleurJourSemaine.nom}. `
+                : ""}
+              Le nombre de personnes est une estimation : deux téléphones sur le même réseau peuvent
+              compter pour un seul.
+            </p>
+
             <p style={{ fontSize: 12.5, color: "var(--muted)", maxWidth: 560 }}>
               {stats.meilleur
                 ? `Meilleur jour : ${formatJour(stats.meilleur.date)} avec ${nombre(stats.meilleur.count)} scans. `
@@ -124,9 +224,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           </>
         ) : (
           <p style={{ fontSize: 14.5, color: "var(--muted-strong)", maxWidth: 560, background: "var(--surface)", borderRadius: 14, padding: 18 }}>
-            Les statistiques ne sont pas disponibles pour ce type de code. Un {typeLabel(code.type).toLowerCase()}{" "}
-            fonctionne sans connexion : la donnée est écrite directement dans le code, donc rien ne passe par
-            nos serveurs au moment du scan.
+            {isTrackable(code.type)
+              ? "Ce code encode ton lien réel : au scan, l'appareil photo affiche directement ton adresse, ce qui rassure tes clients. En échange, les ouvertures ne passent pas par nos serveurs et ne peuvent pas être comptées. Pour les compter, crée un nouveau code en activant le suivi."
+              : `Les statistiques ne sont pas disponibles pour ce type de code. Un ${typeLabel(code.type).toLowerCase()} fonctionne sans connexion : la donnée est écrite directement dans le code, donc rien ne passe par nos serveurs au moment du scan.`}
           </p>
         )}
       </main>

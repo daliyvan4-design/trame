@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { after } from "next/server";
 import { getCode, recordScan } from "@/lib/db/store";
 import { communeFrom } from "@/lib/geo";
+import { appareilDepuis, empreinteDepuis } from "@/lib/visite";
 
 // URL courte encodée dans les QR suivis : on note l'ouverture, puis on redirige.
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -13,10 +14,18 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   }
 
   const commune = communeFrom(request.headers);
+  const appareil = appareilDepuis(request.headers);
+  const empreinte = empreinteDepuis(request.headers);
 
   // L'enregistrement ne doit jamais retarder l'ouverture du lien.
   after(async () => {
-    await recordScan({ codeId: id, at: new Date().toISOString(), commune });
+    await recordScan({
+      codeId: id,
+      at: new Date().toISOString(),
+      commune,
+      appareil,
+      empreinte,
+    });
   });
 
   return NextResponse.redirect(code.target, 302);
