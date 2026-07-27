@@ -195,3 +195,12 @@ test("la localisation ne prétend jamais connaître le quartier", async () => {
   assert.equal(libelleDuLieu({ ville: "", pays: "CI" }), "Côte d'Ivoire");
   assert.equal(libelleDuLieu({ ville: "", pays: "" }), "Lieu inconnu");
 });
+
+test("la tendance ne prétend pas mesurer une progression sans base de comparaison", async () => {
+  const { tendance } = await import("../lib/stats");
+  assert.equal(tendance(0, 0).texte, "aucun scan");
+  assert.equal(tendance(12, 0).texte, "premiers scans", "sans semaine précédente, pas de pourcentage");
+  assert.deepEqual(tendance(150, 100), { signe: "hausse", texte: "+50 %" });
+  assert.deepEqual(tendance(50, 100), { signe: "baisse", texte: "-50 %" });
+  assert.equal(tendance(102, 100).signe, "stable", "une variation de 2 % n'est pas une tendance");
+});

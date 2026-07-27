@@ -55,7 +55,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
         {code.tracked ? (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 20, maxWidth: 560 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 20, maxWidth: 560 }}>
               {[
                 { v: stats.total, l: "scans en tout" },
                 { v: stats.personnes, l: "personnes différentes" },
@@ -208,22 +208,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               </section>
             )}
 
-            <p style={{ fontSize: 12.5, color: "var(--muted)", maxWidth: 560 }}>
+            <p style={{ fontSize: 12.5, color: "var(--muted)", maxWidth: 560, lineHeight: 1.6 }}>
+              {stats.meilleur
+                ? `Ta plus grosse journée reste le ${formatJour(stats.meilleur.date)}, avec ${nombre(stats.meilleur.count)} scans. `
+                : "Aucun scan enregistré pour l'instant. "}
               {stats.retours > 0
-                ? `${nombre(stats.retours)} scans sont des retours : des personnes qui avaient déjà scanné ce code. `
-                : ""}
-              {stats.meilleurJourSemaine
-                ? `Ton meilleur jour de la semaine est le ${stats.meilleurJourSemaine.nom}. `
+                ? `${nombre(stats.retours)} scans sont des retours, c'est-à-dire des personnes qui avaient déjà scanné ce code. `
                 : ""}
               Le nombre de personnes est une estimation : deux téléphones sur le même réseau peuvent
-              compter pour un seul.
-            </p>
-
-            <p style={{ fontSize: 12.5, color: "var(--muted)", maxWidth: 560 }}>
-              {stats.meilleur
-                ? `Meilleur jour : ${formatJour(stats.meilleur.date)} avec ${nombre(stats.meilleur.count)} scans. `
-                : "Aucun scan enregistré pour l'instant. "}
-              Les scans comptent chaque ouverture réelle du code, pas les aperçus.
+              compter pour un seul. Les scans comptent chaque ouverture réelle du code, pas les aperçus.
             </p>
           </>
         ) : (

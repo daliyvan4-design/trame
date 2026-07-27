@@ -6,7 +6,7 @@ import { currentEmail } from "@/auth";
 import { listCodes, scanCountsByCode } from "@/lib/db/store";
 import { QrArtwork } from "@/lib/qr/render";
 import { typeLabel } from "@/lib/qr/encode";
-import { computeStats, formatDate, nombre } from "@/lib/stats";
+import { computeStats, formatDate, nombre, tendance } from "@/lib/stats";
 import { droitAuCodeGratuit } from "@/lib/pricing";
 import { PRICE_XOF } from "@/lib/payments/provider";
 
@@ -28,6 +28,14 @@ export default async function Page() {
   const codes = await listCodes(email);
   const scans = await scanCountsByCode(email);
   const droit = await droitAuCodeGratuit(email);
+
+  // Comparaison des supports : seuls les codes suivis ont des scans à confronter.
+  const suivis = codes
+    .filter((c) => c.tracked)
+    .map((c) => ({ code: c, stats: computeStats(scans[c.id] ?? []) }))
+    .sort((a, b) => b.stats.semaine - a.stats.semaine || b.stats.total - a.stats.total);
+  const maxSemaine = Math.max(1, ...suivis.map((s) => s.stats.semaine));
+  const comparable = suivis.length >= 2;
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -134,6 +142,64 @@ export default async function Page() {
               : `Créer un nouveau code : ${PRICE_XOF.toLocaleString("fr-FR")} F`}
           </Link>
         </div>
+
+        {comparable && (
+          <section style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <h2 className="label">Quel code travaille le mieux</h2>
+              <p style={{ fontSize: 13, color: "var(--muted)" }}>
+                Sur les 7 derniers jours, comparé aux 7 précédents.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {suivis.map(({ code, stats }) => {
+                const t = tendance(stats.semaine, stats.semainePrecedente);
+                const teinte =
+                  t.signe === "hausse" ? "#0E9D63" : t.signe === "baisse" ? "#D6472E" : "var(--muted)";
+                return (
+                  <Link
+                    key={code.id}
+                    href={`/mes-codes/${code.id}`}
+                    style={{ display: "flex", flexDirection: "column", gap: 7 }}
+                  >
+                    <span style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+                      <span style={{ fontSize: 14.5, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {code.name}
+                      </span>
+                      <span style={{ display: "flex", alignItems: "baseline", gap: 10, flexShrink: 0 }}>
+                        <span className="display" style={{ fontSize: 16 }}>
+                          {nombre(stats.semaine)}
+                        </span>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: teinte }}>{t.texte}</span>
+                      </span>
+                    </span>
+                    <span style={{ display: "block", height: 10, background: "var(--surface)", borderRadius: 5, overflow: "hidden" }}>
+                      <span
+                        style={{
+                          display: "block",
+                          width: `${Math.max(2, Math.round((stats.semaine / maxSemaine) * 100))}%`,
+                          height: "100%",
+                          background: code.style.color,
+                          borderRadius: 5,
+                        }}
+                      />
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <p style={{ fontSize: 12.5, color: "var(--muted)", maxWidth: 560 }}>
+              Pour savoir quel emplacement rapporte, mets un code différent sur chaque support :
+              un pour l&apos;affiche, un pour le flyer, un pour la devanture. Tu sauras alors avec
+              certitude lequel travaille, et pas seulement dans quelle ville.
+              {suivis.length < codes.length
+                ? " Les codes sans suivi n'apparaissent pas ici : leurs scans ne sont pas comptés."
+                : ""}
+            </p>
+          </section>
+        )}
 
         {codes.length === 0 && (
           <p style={{ fontSize: 14.5, color: "var(--muted-strong)", maxWidth: 460 }}>

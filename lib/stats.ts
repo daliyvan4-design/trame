@@ -4,6 +4,8 @@ import type { Scan } from "./db/store";
 export type Stats = {
   total: number;
   semaine: number;
+  // Les 7 jours d'avant, pour dire si un support progresse ou s'essouffle.
+  semainePrecedente: number;
   aujourdhui: number;
   jours: Array<{ date: Date; count: number }>;
   // Ce que le réseau rapporte vraiment : des villes, pas des quartiers.
@@ -42,6 +44,7 @@ export function computeStats(scans: Scan[], now = new Date()): Stats {
   }
 
   const semaine = jours.slice(-7).reduce((a, b) => a + b.count, 0);
+  const semainePrecedente = jours.slice(0, 7).reduce((a, b) => a + b.count, 0);
   const aujourdhui = jours[jours.length - 1]?.count ?? 0;
 
   const total = scans.length;
@@ -99,6 +102,7 @@ export function computeStats(scans: Scan[], now = new Date()): Stats {
   return {
     total,
     semaine,
+    semainePrecedente,
     aujourdhui,
     jours,
     lieux,
@@ -111,6 +115,19 @@ export function computeStats(scans: Scan[], now = new Date()): Stats {
     retours,
     appareils,
   };
+}
+
+export type Tendance = { signe: "hausse" | "baisse" | "stable"; texte: string };
+
+// Compare les 7 derniers jours aux 7 précédents. Sans base de comparaison, on ne
+// prétend pas mesurer une progression : on dit simplement que le code démarre.
+export function tendance(semaine: number, precedente: number): Tendance {
+  if (precedente === 0 && semaine === 0) return { signe: "stable", texte: "aucun scan" };
+  if (precedente === 0) return { signe: "hausse", texte: "premiers scans" };
+  const ecart = Math.round(((semaine - precedente) / precedente) * 100);
+  if (ecart > 4) return { signe: "hausse", texte: `+${ecart} %` };
+  if (ecart < -4) return { signe: "baisse", texte: `${ecart} %` };
+  return { signe: "stable", texte: "stable" };
 }
 
 export function trancheHoraire(h: number): string {
