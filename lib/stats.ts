@@ -1,4 +1,4 @@
-import { COMMUNES, type Commune } from "./geo";
+import { libelleDuLieu } from "./geo";
 import type { Scan } from "./db/store";
 
 export type Stats = {
@@ -6,7 +6,8 @@ export type Stats = {
   semaine: number;
   aujourdhui: number;
   jours: Array<{ date: Date; count: number }>;
-  communes: Array<{ name: Commune; pct: number; count: number }>;
+  // Ce que le réseau rapporte vraiment : des villes, pas des quartiers.
+  lieux: Array<{ nom: string; pct: number; count: number }>;
   meilleur: { date: Date; count: number } | null;
   // Insights supplémentaires, tous déduits de ce qui est déjà collecté.
   heures: Array<{ heure: number; count: number }>;
@@ -43,18 +44,15 @@ export function computeStats(scans: Scan[], now = new Date()): Stats {
   const semaine = jours.slice(-7).reduce((a, b) => a + b.count, 0);
   const aujourdhui = jours[jours.length - 1]?.count ?? 0;
 
-  const counts = new Map<Commune, number>();
-  for (const s of scans) {
-    const c = (COMMUNES as readonly string[]).includes(s.commune)
-      ? (s.commune as Commune)
-      : "Autres";
-    counts.set(c, (counts.get(c) ?? 0) + 1);
-  }
   const total = scans.length;
-  const communes = COMMUNES.map((name) => {
-    const count = counts.get(name) ?? 0;
-    return { name, count, pct: total ? Math.round((count / total) * 100) : 0 };
-  }).sort((a, b) => b.count - a.count);
+  const parLieu = new Map<string, number>();
+  for (const s of scans) {
+    const nom = libelleDuLieu({ ville: s.ville ?? "", pays: s.pays ?? "" });
+    parLieu.set(nom, (parLieu.get(nom) ?? 0) + 1);
+  }
+  const lieux = [...parLieu.entries()]
+    .map(([nom, count]) => ({ nom, count, pct: total ? Math.round((count / total) * 100) : 0 }))
+    .sort((a, b) => b.count - a.count);
 
   const meilleur = jours.reduce<{ date: Date; count: number } | null>(
     (best, j) => (j.count > 0 && (!best || j.count > best.count) ? j : best),
@@ -103,7 +101,7 @@ export function computeStats(scans: Scan[], now = new Date()): Stats {
     semaine,
     aujourdhui,
     jours,
-    communes,
+    lieux,
     meilleur,
     heures,
     meilleureHeure,

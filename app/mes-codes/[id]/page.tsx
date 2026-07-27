@@ -102,9 +102,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <section style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 560 }}>
               <h2 className="label">D'où viennent les scans</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {stats.communes.map((c) => (
-                  <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ width: 86, fontSize: 13.5, flexShrink: 0 }}>{c.name}</span>
+                {stats.lieux.map((c) => (
+                  <div key={c.nom} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ width: 110, fontSize: 13.5, flexShrink: 0 }}>{c.nom}</span>
                     <span style={{ flex: 1, height: 8, background: "var(--surface)", borderRadius: 4, overflow: "hidden" }}>
                       <span style={{ display: "block", width: `${c.pct}%`, height: "100%", background: "var(--accent)", borderRadius: 4 }} />
                     </span>
@@ -114,6 +114,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   </div>
                 ))}
               </div>
+              <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
+                La position vient du réseau, pas du téléphone : elle donne la ville, jamais la
+                commune. Un scan fait à Cocody est rapporté comme Abidjan.
+              </p>
             </section>
 
             <section style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 560 }}>

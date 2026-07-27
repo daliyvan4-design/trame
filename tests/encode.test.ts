@@ -81,10 +81,10 @@ test("--on-accent bascule selon la luminance", () => {
 test("les statistiques couvrent 14 jours et repèrent le meilleur", () => {
   const now = new Date("2026-07-27T12:00:00.000Z");
   const scans = [
-    { codeId: "a", at: "2026-07-27T08:00:00.000Z", commune: "Cocody" },
-    { codeId: "a", at: "2026-07-27T09:00:00.000Z", commune: "Cocody" },
-    { codeId: "a", at: "2026-07-25T09:00:00.000Z", commune: "Yopougon" },
-    { codeId: "a", at: "2026-07-01T09:00:00.000Z", commune: "Plateau" },
+    { codeId: "a", at: "2026-07-27T08:00:00.000Z", ville: "Abidjan", pays: "CI" },
+    { codeId: "a", at: "2026-07-27T09:00:00.000Z", ville: "Abidjan", pays: "CI" },
+    { codeId: "a", at: "2026-07-25T09:00:00.000Z", ville: "Bouaké", pays: "CI" },
+    { codeId: "a", at: "2026-07-01T09:00:00.000Z", ville: "", pays: "FR" },
   ];
   const s = computeStats(scans, now);
   assert.equal(s.jours.length, 14);
@@ -92,8 +92,10 @@ test("les statistiques couvrent 14 jours et repèrent le meilleur", () => {
   assert.equal(s.aujourdhui, 2);
   assert.equal(s.semaine, 3);
   assert.equal(s.meilleur?.count, 2);
-  assert.equal(s.communes[0].name, "Cocody");
-  assert.equal(s.communes[0].pct, 50);
+  assert.equal(s.lieux[0].nom, "Abidjan");
+  assert.equal(s.lieux[0].pct, 50);
+  // sans ville, on affiche le pays plutôt qu'un quartier inventé
+  assert.ok(s.lieux.some((l) => l.nom === "France"));
 });
 
 test("le pilote de démonstration est sans état : la référence porte son instant de départ", async () => {
@@ -155,12 +157,12 @@ test("les insights se déduisent des scans, à l'heure d'Abidjan (UTC+0)", () =>
   const now = new Date("2026-07-27T20:00:00.000Z"); // un lundi
   const scans = [
     // trois scans à 19 h, dont deux par le même appareil
-    { codeId: "a", at: "2026-07-27T19:10:00.000Z", commune: "Cocody", appareil: "iPhone", empreinte: "aaa" },
-    { codeId: "a", at: "2026-07-27T19:40:00.000Z", commune: "Cocody", appareil: "iPhone", empreinte: "aaa" },
-    { codeId: "a", at: "2026-07-27T19:50:00.000Z", commune: "Marcory", appareil: "Android", empreinte: "bbb" },
+    { codeId: "a", at: "2026-07-27T19:10:00.000Z", ville: "Abidjan", pays: "CI", appareil: "iPhone", empreinte: "aaa" },
+    { codeId: "a", at: "2026-07-27T19:40:00.000Z", ville: "Abidjan", pays: "CI", appareil: "iPhone", empreinte: "aaa" },
+    { codeId: "a", at: "2026-07-27T19:50:00.000Z", ville: "Abidjan", pays: "CI", appareil: "Android", empreinte: "bbb" },
     // deux scans à 8 h un samedi
-    { codeId: "a", at: "2026-07-25T08:00:00.000Z", commune: "Plateau", appareil: "Android", empreinte: "ccc" },
-    { codeId: "a", at: "2026-07-25T08:30:00.000Z", commune: "Plateau", appareil: "Android", empreinte: "ddd" },
+    { codeId: "a", at: "2026-07-25T08:00:00.000Z", ville: "Bouaké", pays: "CI", appareil: "Android", empreinte: "ccc" },
+    { codeId: "a", at: "2026-07-25T08:30:00.000Z", ville: "Bouaké", pays: "CI", appareil: "Android", empreinte: "ddd" },
   ];
   const s = computeStats(scans, now);
 
@@ -175,4 +177,21 @@ test("les insights se déduisent des scans, à l'heure d'Abidjan (UTC+0)", () =>
   assert.equal(s.appareils[0].nom, "Android");
   assert.equal(s.appareils[0].count, 3);
   assert.equal(s.appareils[0].pct, 60);
+});
+
+test("la localisation ne prétend jamais connaître le quartier", async () => {
+  const { lieuDepuis, libelleDuLieu } = await import("../lib/geo");
+
+  // ce que Vercel rapporte réellement pour un scan fait à Cocody
+  const abidjan = lieuDepuis(new Headers({ "x-vercel-ip-city": "Abidjan", "x-vercel-ip-country": "CI" }));
+  assert.deepEqual(abidjan, { ville: "Abidjan", pays: "CI" });
+  assert.equal(libelleDuLieu(abidjan), "Abidjan");
+
+  // les noms encodés sont décodés proprement
+  const encode = lieuDepuis(new Headers({ "x-vercel-ip-city": "Yamoussoukro", "x-vercel-ip-country": "CI" }));
+  assert.equal(libelleDuLieu(encode), "Yamoussoukro");
+
+  // sans ville connue, on retombe sur le pays, jamais sur un quartier
+  assert.equal(libelleDuLieu({ ville: "", pays: "CI" }), "Côte d'Ivoire");
+  assert.equal(libelleDuLieu({ ville: "", pays: "" }), "Lieu inconnu");
 });

@@ -21,7 +21,9 @@ export type SavedCode = {
 export type Scan = {
   codeId: string;
   at: string;
-  commune: string;
+  // Ce que le réseau rapporte réellement : une ville et un pays, jamais un quartier.
+  ville: string;
+  pays: string;
   appareil?: string;
   empreinte?: string;
 };
@@ -63,7 +65,10 @@ function ensureSchema(): Promise<void> {
           id       BIGSERIAL PRIMARY KEY,
           code_id  TEXT NOT NULL REFERENCES codes(id) ON DELETE CASCADE,
           at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-          commune  TEXT NOT NULL
+          -- Colonne héritée : on rangeait les scans dans cinq communes d'Abidjan,
+          -- avant de constater qu'une IP ne situe qu'une ville. Conservée pour ne
+          -- pas perdre les lignes déjà enregistrées.
+          commune  TEXT
         )
       `;
       await q`
@@ -75,6 +80,9 @@ function ensureSchema(): Promise<void> {
           updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `;
+      await q`ALTER TABLE scans ADD COLUMN IF NOT EXISTS ville TEXT NOT NULL DEFAULT ''`;
+      await q`ALTER TABLE scans ADD COLUMN IF NOT EXISTS pays TEXT NOT NULL DEFAULT ''`;
+      await q`ALTER TABLE scans ALTER COLUMN commune DROP NOT NULL`;
       await q`ALTER TABLE scans ADD COLUMN IF NOT EXISTS appareil TEXT NOT NULL DEFAULT 'Autre'`;
       await q`ALTER TABLE scans ADD COLUMN IF NOT EXISTS empreinte TEXT NOT NULL DEFAULT ''`;
       await q`CREATE INDEX IF NOT EXISTS codes_owner_idx ON codes (owner_email, created_at DESC)`;
@@ -176,20 +184,21 @@ export async function listCodes(ownerEmail: string): Promise<SavedCode[]> {
 export async function recordScan(scan: Scan): Promise<void> {
   await ensureSchema();
   await sql()`
-    INSERT INTO scans (code_id, at, commune, appareil, empreinte)
-    VALUES (${scan.codeId}, ${scan.at}, ${scan.commune}, ${scan.appareil ?? "Autre"}, ${scan.empreinte ?? ""})
+    INSERT INTO scans (code_id, at, ville, pays, appareil, empreinte)
+    VALUES (${scan.codeId}, ${scan.at}, ${scan.ville}, ${scan.pays}, ${scan.appareil ?? "Autre"}, ${scan.empreinte ?? ""})
   `;
 }
 
 export async function scansFor(codeId: string): Promise<Scan[]> {
   await ensureSchema();
   const rows = (await sql()`
-    SELECT code_id, at, commune, appareil, empreinte FROM scans WHERE code_id = ${codeId}
-  `) as Array<{ code_id: string; at: Date | string; commune: string; appareil: string; empreinte: string }>;
+    SELECT code_id, at, ville, pays, appareil, empreinte FROM scans WHERE code_id = ${codeId}
+  `) as Array<{ code_id: string; at: Date | string; ville: string; pays: string; appareil: string; empreinte: string }>;
   return rows.map((r) => ({
     codeId: r.code_id,
     at: new Date(r.at).toISOString(),
-    commune: r.commune,
+    ville: r.ville,
+    pays: r.pays,
     appareil: r.appareil,
     empreinte: r.empreinte,
   }));
@@ -231,17 +240,18 @@ export async function getPayment(
 export async function scanCountsByCode(ownerEmail: string): Promise<Record<string, Scan[]>> {
   await ensureSchema();
   const rows = (await sql()`
-    SELECT s.code_id, s.at, s.commune, s.appareil, s.empreinte
+    SELECT s.code_id, s.at, s.ville, s.pays, s.appareil, s.empreinte
     FROM scans s
     JOIN codes c ON c.id = s.code_id
     WHERE c.owner_email = ${ownerEmail}
-  `) as Array<{ code_id: string; at: Date | string; commune: string; appareil: string; empreinte: string }>;
+  `) as Array<{ code_id: string; at: Date | string; ville: string; pays: string; appareil: string; empreinte: string }>;
   const out: Record<string, Scan[]> = {};
   for (const r of rows) {
     (out[r.code_id] ??= []).push({
       codeId: r.code_id,
       at: new Date(r.at).toISOString(),
-      commune: r.commune,
+      ville: r.ville,
+      pays: r.pays,
       appareil: r.appareil,
       empreinte: r.empreinte,
     });
